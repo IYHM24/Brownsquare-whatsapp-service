@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package health;
+
+// Servicio para verificar el estado del microservicio
+service Health {
+  // Verifica si el servicio está funcionando
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+  
+  // Streaming de estado de salud
+  rpc Watch(HealthCheckRequest) returns (stream HealthCheckResponse);
+}
+
+// Solicitud de verificación de salud
+message HealthCheckRequest {
+  string service = 1; // Nombre del servicio a verificar (opcional)
+}
+
+// Respuesta de verificación de salud
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;      // El servicio está funcionando normalmente
+    NOT_SERVING = 2;  // El servicio no está disponible
+    SERVICE_UNKNOWN = 3; // El servicio no existe
+  }
+  
+  ServingStatus status = 1;
+  string message = 2; // Mensaje adicional sobre el estado
+  int64 timestamp = 3; // Timestamp Unix del estado
+  string version = 4; // Versión del servicio
+}

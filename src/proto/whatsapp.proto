@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package whatsapp;
+
+// Servicio para operaciones de WhatsApp
+service WhatsAppService {
+  
+  // Envía un mensaje de WhatsApp
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  
+  // Obtiene el estado del mensaje
+  rpc GetMessageStatus(MessageStatusRequest) returns (MessageStatusResponse);
+  
+}
+
+// Solicitud para enviar mensaje
+message SendMessageRequest {
+  string numero = 1;         // Número de teléfono del destinatario
+  string codigo_pais = 2;    // Código del país (ejemplo: "57" para Colombia)
+  string mensaje = 3;        // Contenido del mensaje a enviar
+  string message_id = 4;     // ID único del mensaje (opcional)
+  MessageType type = 5;      // Tipo de mensaje
+}
+
+// Respuesta del envío de mensaje
+message SendMessageResponse {
+  bool success = 1;          // Indica si el mensaje se envió exitosamente
+  string message = 2;        // Mensaje de respuesta o error
+  string message_id = 3;     // ID del mensaje enviado
+  int64 timestamp = 4;       // Timestamp Unix del envío
+}
+
+// Solicitud para verificar estado del mensaje
+message MessageStatusRequest {
+  string message_id = 1;     // ID del mensaje a verificar
+}
+
+// Respuesta del estado del mensaje
+message MessageStatusResponse {
+  string message_id = 1;     // ID del mensaje
+  MessageStatus status = 2;  // Estado actual del mensaje
+  int64 timestamp = 3;       // Timestamp de la última actualización
+  string details = 4;        // Detalles adicionales del estado
+}
+
+// Tipos de mensaje soportados
+enum MessageType {
+  TEXT = 0;        // Mensaje de texto
+  IMAGE = 1;       // Imagen
+  DOCUMENT = 2;    // Documento
+  AUDIO = 3;       // Audio
+  VIDEO = 4;       // Video
+}
+
+// Estados posibles del mensaje
+enum MessageStatus {
+  UNKNOWN = 0;     // Estado desconocido
+  PENDING = 1;     // Pendiente de envío
+  SENT = 2;        // Enviado
+  DELIVERED = 3;   // Entregado
+  READ = 4;        // Leído
+  FAILED = 5;      // Falló el envío
+}

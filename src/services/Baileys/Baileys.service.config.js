@@ -3,6 +3,7 @@ import * as QRCode from "qrcode"  // 👈 ESTA LÍNEA ES LA CLAVE
 import { Boom } from "@hapi/boom"
 import path from "path"
 import { fileURLToPath } from "url"
+import P from 'pino';
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -25,9 +26,11 @@ export async function startSock(
     throw error
   }
 
+  const logger = P({ level: 'error' });
   const sock = makeWASocket({
     printQRInTerminal: true, // muestra el QR en la consola
-    auth: state
+    auth: state,
+    logger
   })
 
   // Evento: conexión

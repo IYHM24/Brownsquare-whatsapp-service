@@ -1,0 +1,16 @@
+// Indica el endpoint del servidor gRPC
+// Puedes usar localhost si estás probando localmente
+// syntax: @server = host:port
+@server = localhost:50051
+
+// Llama al método del servicio
+GRPC @server
+service: user.UserService
+rpc: GetUser
+metadata:
+  authorization: Bearer abc123
+
+message:
+{
+  "id": 123
+}
