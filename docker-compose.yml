@@ -1,0 +1,9 @@
+services:
+  whatsapp-baileys:
+    container_name: whatsapp-baileys
+    image: whatsapp-baileys:latest
+    env_file:
+      - .env
+    volumes:
+      - ./auth_info:/app/auth_info
+    restart: unless-stopped

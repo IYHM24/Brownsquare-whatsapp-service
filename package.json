@@ -1,0 +1,19 @@
+{
+  "name": "test-libreria-free-whatsapp",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "7.0.0-rc.6",
+    "dotenv": "^17.2.3",
+    "qrcode": "^1.5.4"
+  }
+}

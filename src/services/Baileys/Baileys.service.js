@@ -1,0 +1,71 @@
+import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys"
+import * as QRCode from "qrcode"  // 👈 ESTA LÍNEA ES LA CLAVE
+import { Boom } from "@hapi/boom"
+
+export async function startSock(
+  //Funciones para configurar el socket
+  onChangeConnectionState = (connection) => {},
+) {
+  const { state, saveCreds } = await useMultiFileAuthState("./auth_info")
+
+  const sock = makeWASocket({
+    printQRInTerminal: true, // muestra el QR en la consola
+    auth: state
+  })
+
+  // Evento: conexión
+  sock.ev.on("connection.update", async (update) => {
+
+    const { connection, lastDisconnect, qr  } = update
+
+    // Generar QR
+    if (qr) {
+      // genera QR y muéstralo
+      const qrCode = await QRCode.toString(qr, { type: "terminal", small: true });
+      console.log("📱 Escanea este código QR con tu aplicación de WhatsApp:");
+      console.log(qrCode);
+      // o envíalo al front-end
+    }
+
+    //
+    if (connection === "close") {
+      onChangeConnectionState(connection);
+      const shouldReconnect =
+        (lastDisconnect?.error instanceof Boom
+          ? lastDisconnect.error.output?.statusCode
+          : 0) !== DisconnectReason.loggedOut
+
+      console.log("❌ Conexión cerrada, reconectando:", shouldReconnect)
+      if (shouldReconnect) startSock()
+    } 
+
+    //
+    else if (connection === "open") {
+      console.log("✅ Conectado a WhatsApp")
+      onChangeConnectionState(connection);
+    }
+
+  })
+
+  // Evento: guardar credenciales
+  sock.ev.on("creds.update", saveCreds)
+
+  // Evento: recibir mensajes
+  sock.ev.on("messages.upsert", async (m) => {
+    const msg = m.messages[0]
+    if (!msg.message) return
+
+    const from = msg.key.remoteJid || ""
+    const text = msg.message.conversation || msg.message.extendedTextMessage?.text
+
+    console.log("💬 Mensaje de", from, ":", text)
+
+    // Responder automáticamente
+    if (text?.toLowerCase() === "hola") {
+      await sock.sendMessage(from, { text: "👋 ¡Hola! Soy tu bot Baileys" })
+    }
+  })
+
+  return sock;
+
+}
