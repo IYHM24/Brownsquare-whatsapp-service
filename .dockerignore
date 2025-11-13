@@ -1,8 +1,49 @@
-node_modules
-.pnpm-store
-.pnpm
-.env
-.git
+# Dependencies
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Logs
+*.log
+logs/
+grpc-server*.log
+
+# Environment variables (pass at runtime)
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
 .dockerignore
-Dockerfile
-dist
+docker-compose*.yml
+
+# Documentation
+*.md
+docs/
+
+# Test files
+test-grpc-client.js
+*.test.js
+*.spec.js
+
+# Build artifacts
+dist/
+build/
+tmp/
+temp/

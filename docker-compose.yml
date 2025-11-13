@@ -1,9 +1,53 @@
+version: '3.8'
+
 services:
-  whatsapp-baileys:
-    container_name: whatsapp-baileys
-    image: whatsapp-baileys:latest
-    env_file:
-      - .env
+  whatsapp-grpc-service:
+    container_name: brownsquare-whatsapp-service
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - WA_PHONE=${WA_PHONE:-3506930989}
+      - WA_COUNTRY_CODE=${WA_COUNTRY_CODE:-57}
+      - GRPC_PORT=${GRPC_PORT:-50051}
+      - GRPC_HOST=${GRPC_HOST:-0.0.0.0}
+    ports:
+      - "${GRPC_PORT:-50051}:50051"
     volumes:
-      - ./auth_info:/app/auth_info
+      # Persistir datos de autenticación de WhatsApp mediante bind volume
+      - ./auth/auth_info:/app/auth/auth_info:rw
+      # Logs (opcional)
+      - ./logs:/app/logs:rw
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 50051 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - whatsapp-network
+
+  # Opcional: Cliente de prueba
+  #grpc-client-test:
+  #  container_name: brownsquare-grpc-client-test
+  #  image: node:20.18.0-alpine
+  #  working_dir: /app
+  #  command: ["sh", "-c", "sleep infinity"]
+  #  volumes:
+  #    - .:/app:ro
+  #  networks:
+  #    - whatsapp-network
+  #  profiles:
+  #    - testing
+  #  depends_on:
+  #    - whatsapp-grpc-service
+
+networks:
+  whatsapp-network:
+    driver: bridge
+
+volumes:
+  whatsapp-auth:
+    driver: local
