@@ -1,71 +1,91 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys"
-import * as QRCode from "qrcode"  // 👈 ESTA LÍNEA ES LA CLAVE
-import { Boom } from "@hapi/boom"
+import { startSock } from "./Baileys.service.config.js";
+import { sendText } from "../../utils/baileys.utils.js";
 
-export async function startSock(
-  //Funciones para configurar el socket
-  onChangeConnectionState = (connection) => {},
-) {
-  const { state, saveCreds } = await useMultiFileAuthState("./auth_info")
+export class BaileysService {
 
-  const sock = makeWASocket({
-    printQRInTerminal: true, // muestra el QR en la consola
-    auth: state
-  })
+    /* Socker */
+    _sock;
+    /* Estado de conexión */
+    _connectionState;
 
-  // Evento: conexión
-  sock.ev.on("connection.update", async (update) => {
+    constructor() { }
 
-    const { connection, lastDisconnect, qr  } = update
-
-    // Generar QR
-    if (qr) {
-      // genera QR y muéstralo
-      const qrCode = await QRCode.toString(qr, { type: "terminal", small: true });
-      console.log("📱 Escanea este código QR con tu aplicación de WhatsApp:");
-      console.log(qrCode);
-      // o envíalo al front-end
+    /**
+     * Cambio de estado en la conexion
+     * @param {*} connection 
+     */
+    onChangeConnectionState = (connection) => {
+        console.log("Estado de conexión:", connection);
+        this._connectionState = connection;
     }
 
-    //
-    if (connection === "close") {
-      onChangeConnectionState(connection);
-      const shouldReconnect =
-        (lastDisconnect?.error instanceof Boom
-          ? lastDisconnect.error.output?.statusCode
-          : 0) !== DisconnectReason.loggedOut
+    /**
+     * Inicia la conexión con WhatsApp usando Baileys
+     * @returns 
+     */
+    startConnection = async () => {
+        try {
+            //Establecer conexión
+            console.log("Iniciando conexión Baileys...");
+            this._sock = await startSock(this.onChangeConnectionState);
 
-      console.log("❌ Conexión cerrada, reconectando:", shouldReconnect)
-      if (shouldReconnect) startSock()
-    } 
+            //Esperar a que la conexión esté abierta
+            console.log("Esperando conexión...");
+            return new Promise((resolve) => {
+                const checkConnection = () => {
+                    if (this._connectionState === "open") {
+                        console.log("✅ Conexión WhatsApp establecida con éxito.");
+                        resolve(this._sock);
+                    } else {
+                        setTimeout(checkConnection, 1000);
+                    }
+                };
+                checkConnection();
+            });
 
-    //
-    else if (connection === "open") {
-      console.log("✅ Conectado a WhatsApp")
-      onChangeConnectionState(connection);
+        } catch (error) {
+            console.error("✖️ Error al iniciar la conexión:", error);
+            return null;
+        }
     }
 
-  })
+    /**
+     * Enviar un mensaje de texto a través de Baileys
+     * @param {*} to 
+     * @param {*} countryCode 
+     * @param {*} message 
+     * @returns 
+     */
+    sendMessage = async (to, countryCode, message) => {
+        try {
 
-  // Evento: guardar credenciales
-  sock.ev.on("creds.update", saveCreds)
+            //Mostrar info del mensaje
+            console.log("Enviando mensaje a través de Baileys...");
+            console.log("📲 Numero a enviar: ", to);
+            console.log("📝 Mensaje: ", message);
 
-  // Evento: recibir mensajes
-  sock.ev.on("messages.upsert", async (m) => {
-    const msg = m.messages[0]
-    if (!msg.message) return
+            //Comprobar estado de la conexión
+            if(this._connectionState === "open") {
+                
+                //Enviar mensajes
+                await sendText(this._sock, `${countryCode}${to}`, message).then((result) => {
+                    console.log("Mensaje enviado:", result);
+                }).catch((err) => {
+                    console.error("Error al enviar mensaje:", err);
+                });
 
-    const from = msg.key.remoteJid || ""
-    const text = msg.message.conversation || msg.message.extendedTextMessage?.text
+                //Retornar exito
+                console.log("✔️ Mensaje enviado con éxito.");
+                return true;
 
-    console.log("💬 Mensaje de", from, ":", text)
+            }else {
+                console.error("✖️ No se puede enviar el mensaje, la conexión no está abierta.");
+            }
 
-    // Responder automáticamente
-    if (text?.toLowerCase() === "hola") {
-      await sock.sendMessage(from, { text: "👋 ¡Hola! Soy tu bot Baileys" })
+        } catch (error) {
+            console.error("✖️ Error al enviar mensaje:", error);
+            return false;
+        }
     }
-  })
-
-  return sock;
 
 }
