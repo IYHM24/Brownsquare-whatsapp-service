@@ -11,6 +11,15 @@ service WhatsAppService {
   // Obtiene el estado del mensaje
   rpc GetMessageStatus(MessageStatusRequest) returns (MessageStatusResponse);
   
+  // Obtiene el estado de la conexión con WhatsApp
+  rpc GetConnectionStatus(ConnectionStatusRequest) returns (ConnectionStatusResponse);
+  
+  // Stream de notificaciones de cambios en el estado de conexión
+  rpc WatchConnectionStatus(ConnectionStatusRequest) returns (stream ConnectionStatusResponse);
+  
+  // Reinicia la conexión con WhatsApp
+  rpc RestartConnection(RestartConnectionRequest) returns (RestartConnectionResponse);
+  
 }
 
 // Solicitud para enviar mensaje
@@ -60,4 +69,49 @@ enum MessageStatus {
   DELIVERED = 3;   // Entregado
   READ = 4;        // Leído
   FAILED = 5;      // Falló el envío
+}
+
+// Solicitud para obtener estado de conexión
+message ConnectionStatusRequest {
+  bool watch = 1;  // Si es true, mantiene el stream activo para recibir actualizaciones
+}
+
+// Respuesta del estado de conexión con WhatsApp
+message ConnectionStatusResponse {
+  ConnectionState state = 1;  // Estado actual de la conexión
+  string message = 2;          // Mensaje descriptivo del estado
+  int64 timestamp = 3;         // Timestamp Unix del estado
+  ConnectionInfo info = 4;     // Información adicional de la conexión
+}
+
+// Estados de conexión con WhatsApp
+enum ConnectionState {
+  DISCONNECTED = 0;   // Desconectado
+  CONNECTING = 1;     // Conectando
+  CONNECTED = 2;      // Conectado y listo
+  RECONNECTING = 3;   // Reconectando
+  ERROR = 4;          // Error en la conexión
+  LOGGED_OUT = 5;     // Sesión cerrada (requiere QR)
+}
+
+// Información adicional de la conexión
+message ConnectionInfo {
+  string phone_number = 1;     // Número de teléfono conectado
+  string device_name = 2;      // Nombre del dispositivo
+  bool is_authenticated = 3;   // Si está autenticado
+  int64 connected_since = 4;   // Timestamp desde cuando está conectado
+}
+
+// Solicitud para reiniciar conexión
+message RestartConnectionRequest {
+  bool force = 1;              // Si es true, fuerza el reinicio aunque esté conectado
+  string reason = 2;           // Razón del reinicio (opcional)
+}
+
+// Respuesta del reinicio de conexión
+message RestartConnectionResponse {
+  bool success = 1;            // Indica si el reinicio fue exitoso
+  string message = 2;          // Mensaje descriptivo del resultado
+  ConnectionState new_state = 3; // Nuevo estado después del reinicio
+  int64 timestamp = 4;         // Timestamp del reinicio
 }

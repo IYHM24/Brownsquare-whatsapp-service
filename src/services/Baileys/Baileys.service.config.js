@@ -56,7 +56,22 @@ export async function startSock(
           : 0) !== DisconnectReason.loggedOut
 
       console.log("❌ Conexión cerrada, reconectando:", shouldReconnect)
-      if (shouldReconnect) startSock()
+      
+      // Solo reconectar si no es un cierre manual o reemplazo de sesión
+      const statusCode = lastDisconnect?.error instanceof Boom 
+        ? lastDisconnect.error.output?.statusCode 
+        : 0;
+      
+      // No reconectar en caso de conflicto (sesión reemplazada)
+      if (statusCode === 440) {
+        console.log("⚠️  Sesión reemplazada en otro dispositivo. No reconectando automáticamente.");
+        return;
+      }
+      
+      if (shouldReconnect) {
+        console.log("🔄 Reconectando en 5 segundos...");
+        setTimeout(() => startSock(onChangeConnectionState), 5000);
+      }
     } 
 
     //

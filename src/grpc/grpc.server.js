@@ -4,12 +4,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import HealthService from './health.service.js';
 import WhatsAppService from './whatsapp.service.js';
+import { wrapServiceWithLogging } from './interceptors/logging.interceptor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 class GrpcServer {
   constructor(baileysService = null) {
+    // Crear servidor sin interceptores (usaremos wrapper de métodos)
     this.server = new grpc.Server();
     this.healthService = new HealthService();
     this.whatsappService = new WhatsAppService(baileysService);
@@ -50,19 +52,26 @@ class GrpcServer {
    */
   setupServices() {
     try {
-      // Servicio de Health
-      this.server.addService(this.healthProto.Health.service, {
+      // Servicio de Health con logging
+      const healthImplementation = wrapServiceWithLogging({
         Check: this.healthService.Check.bind(this.healthService),
         Watch: this.healthService.Watch.bind(this.healthService)
-      });
+      }, 'Health');
 
-      // Servicio de WhatsApp
-      this.server.addService(this.whatsappProto.WhatsAppService.service, {
+      this.server.addService(this.healthProto.Health.service, healthImplementation);
+
+      // Servicio de WhatsApp con logging
+      const whatsappImplementation = wrapServiceWithLogging({
         SendMessage: this.whatsappService.SendMessage.bind(this.whatsappService),
         GetMessageStatus: this.whatsappService.GetMessageStatus.bind(this.whatsappService),
-      });
+        GetConnectionStatus: this.whatsappService.GetConnectionStatus.bind(this.whatsappService),
+        WatchConnectionStatus: this.whatsappService.WatchConnectionStatus.bind(this.whatsappService),
+        RestartConnection: this.whatsappService.RestartConnection.bind(this.whatsappService)
+      }, 'WhatsAppService');
 
-      console.log('✅ gRPC services configured successfully');
+      this.server.addService(this.whatsappProto.WhatsAppService.service, whatsappImplementation);
+
+      console.log('✅ gRPC services configured successfully with logging');
     } catch (error) {
       console.error('❌ Error setting up gRPC services:', error);
       throw error;
@@ -93,6 +102,9 @@ class GrpcServer {
           console.log(`   - Health.Watch`);
           console.log(`   - WhatsAppService.SendMessage`);
           console.log(`   - WhatsAppService.GetMessageStatus`);
+          console.log(`   - WhatsAppService.GetConnectionStatus`);
+          console.log(`   - WhatsAppService.WatchConnectionStatus`);
+          console.log(`   - WhatsAppService.RestartConnection`);
           
           resolve(port);
         }

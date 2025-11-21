@@ -134,6 +134,194 @@ class WhatsAppService {
     }
   }
 
+  /**
+   * Obtiene el estado actual de la conexión con WhatsApp
+   */
+  GetConnectionStatus(call, callback) {
+    try {
+      const connectionState = this.baileysService?._connectionState || 'close';
+      const sock = this.baileysService?._sock;
+
+      // Mapear estado de Baileys a enum de proto
+      const stateMap = {
+        'open': 2,        // CONNECTED
+        'connecting': 1,  // CONNECTING
+        'close': 0,       // DISCONNECTED
+      };
+
+      const protoState = stateMap[connectionState] || 0;
+      
+      // Obtener información adicional
+      const info = {
+        phone_number: process.env.WA_COUNTRY_CODE + process.env.WA_PHONE || '',
+        device_name: 'Baileys Service',
+        is_authenticated: connectionState === 'open',
+        connected_since: connectionState === 'open' ? Date.now() : 0
+      };
+
+      const response = {
+        state: protoState,
+        message: this.getConnectionMessage(connectionState),
+        timestamp: Date.now(),
+        info: info
+      };
+
+      callback(null, response);
+      
+    } catch (error) {
+      console.error('Error al obtener estado de conexión:', error);
+      callback({
+        code: grpc.status.INTERNAL,
+        message: `Error al obtener estado de conexión: ${error.message}`
+      });
+    }
+  }
+
+  /**
+   * Stream de notificaciones de cambios en el estado de conexión
+   */
+  WatchConnectionStatus(call) {
+    console.log('Cliente conectado para watch de estado de conexión');
+    
+    // Enviar estado actual inmediatamente
+    this.sendConnectionStatus(call);
+
+    // Configurar listener para cambios de estado
+    const checkInterval = setInterval(() => {
+      this.sendConnectionStatus(call);
+    }, 5000); // Verificar cada 5 segundos
+
+    // Limpiar cuando el cliente se desconecta
+    call.on('cancelled', () => {
+      console.log('Cliente desconectado del watch de conexión');
+      clearInterval(checkInterval);
+    });
+
+    call.on('error', (error) => {
+      console.error('Error en watch de conexión:', error);
+      clearInterval(checkInterval);
+    });
+  }
+
+  /**
+   * Envía el estado de conexión actual al stream
+   */
+  sendConnectionStatus(call) {
+    try {
+      const connectionState = this.baileysService?._connectionState || 'close';
+      
+      const stateMap = {
+        'open': 2,        // CONNECTED
+        'connecting': 1,  // CONNECTING
+        'close': 0,       // DISCONNECTED
+      };
+
+      const protoState = stateMap[connectionState] || 0;
+      
+      const info = {
+        phone_number: process.env.WA_COUNTRY_CODE + process.env.WA_PHONE || '',
+        device_name: 'Baileys Service',
+        is_authenticated: connectionState === 'open',
+        connected_since: connectionState === 'open' ? Date.now() : 0
+      };
+
+      const response = {
+        state: protoState,
+        message: this.getConnectionMessage(connectionState),
+        timestamp: Date.now(),
+        info: info
+      };
+
+      call.write(response);
+      
+    } catch (error) {
+      console.error('Error al enviar estado de conexión:', error);
+    }
+  }
+
+  /**
+   * Obtiene un mensaje descriptivo del estado de conexión
+   */
+  getConnectionMessage(state) {
+    const messages = {
+      'open': 'Conectado a WhatsApp y listo para enviar mensajes',
+      'connecting': 'Conectando con WhatsApp...',
+      'close': 'Desconectado de WhatsApp'
+    };
+    return messages[state] || 'Estado desconocido';
+  }
+
+  /**
+   * Reinicia la conexión con WhatsApp
+   */
+  async RestartConnection(call, callback) {
+    try {
+      const { force, reason } = call.request;
+      
+      console.log(`🔄 RestartConnection solicitado:`, { force, reason });
+
+      // Verificar si hay servicio de Baileys
+      if (!this.baileysService) {
+        return callback(null, {
+          success: false,
+          message: 'Servicio Baileys no está disponible',
+          new_state: 0, // DISCONNECTED
+          timestamp: Date.now()
+        });
+      }
+
+      const currentState = this.baileysService._connectionState;
+      
+      // Si está conectado y no es forzado, no reiniciar
+      if (currentState === 'open' && !force) {
+        return callback(null, {
+          success: false,
+          message: 'Ya está conectado. Use force=true para reiniciar de todas formas',
+          new_state: 2, // CONNECTED
+          timestamp: Date.now()
+        });
+      }
+
+      console.log(`🔄 Reiniciando conexión WhatsApp... Razón: ${reason || 'Manual'}`);
+
+      // Cerrar conexión actual si existe
+      if (this.baileysService._sock) {
+        try {
+          // Remover listeners para evitar reconexión automática
+          this.baileysService._sock.ev.removeAllListeners('connection.update');
+          await this.baileysService._sock.end();
+          console.log('✅ Conexión anterior cerrada');
+        } catch (error) {
+          console.log('⚠️  Error al cerrar conexión anterior:', error.message);
+        }
+      }
+
+      // Esperar antes de reconectar
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Reiniciar conexión
+      console.log('📱 Iniciando nueva conexión...');
+      await this.baileysService.startConnection();
+
+      // Retornar respuesta inmediata sin esperar
+      callback(null, {
+        success: true,
+        message: 'Proceso de reconexión iniciado',
+        new_state: 1, // CONNECTING
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('❌ Error al reiniciar conexión:', error);
+      callback(null, {
+        success: false,
+        message: `Error al reiniciar: ${error.message}`,
+        new_state: 4, // ERROR
+        timestamp: Date.now()
+      });
+    }
+  }
+
 }
 
 export default WhatsAppService;

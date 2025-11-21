@@ -1,5 +1,6 @@
 import { BaileysService } from "./services/Baileys/Baileys.service.js";
 import GrpcServer from "./grpc/grpc.server.js";
+import WhatsAppHealthChecker from "./utils/whatsapp-health-checker.js";
 
 /* Cargar variables de entorno */
 import dotenv from 'dotenv';
@@ -10,16 +11,25 @@ const WA_PHONE = process.env.WA_PHONE;
 const WA_COUNTRY_CODE = process.env.WA_COUNTRY_CODE;
 const GRPC_PORT = process.env.GRPC_PORT || 50051;
 const GRPC_HOST = process.env.GRPC_HOST || '0.0.0.0';
+const HEALTH_CHECK_INTERVAL = parseInt(process.env.HEALTH_CHECK_INTERVAL) || 60000; // 60 segundos por defecto
 
 /* Variables de control */
 let grpcServer = null;
 let baileysService = null;
+let healthCheckIntervalId = null;
 
 /* Funcion para manejar el cierre graceful */
 const gracefulShutdown = async (signal) => {
     console.log(`\n🔄 Received ${signal}. Starting graceful shutdown...`);
     
     try {
+        // Detener verificación periódica de salud
+        if (healthCheckIntervalId) {
+            console.log('🛑 Stopping health check...');
+            WhatsAppHealthChecker.stopPeriodicHealthCheck(healthCheckIntervalId);
+            healthCheckIntervalId = null;
+        }
+        
         if (grpcServer) {
             console.log('🛑 Stopping gRPC server...');
             await grpcServer.stop();
@@ -81,13 +91,24 @@ const main = async () => {
         console.log(`🌐 gRPC Server: ${GRPC_HOST}:${GRPC_PORT}`);
         console.log('📱 WhatsApp: Connected and ready');
         
+        // Iniciar verificación periódica de salud de WhatsApp
+        console.log(`🏥 Starting WhatsApp health check (every ${HEALTH_CHECK_INTERVAL / 1000}s)...`);
+        healthCheckIntervalId = WhatsAppHealthChecker.startPeriodicHealthCheck(
+            baileysService, 
+            HEALTH_CHECK_INTERVAL
+        );
+        
         // Mostrar estadísticas cada 60 segundos
         setInterval(() => {
             const stats = grpcServer.getStats();
+            const healthStatus = WhatsAppHealthChecker.getDetailedStatus(baileysService);
+            
             console.log('📊 Server Stats:', {
                 gRPC: stats.isRunning ? 'Running' : 'Stopped',
                 health: stats.healthStatus,
                 messageQueue: stats.messageQueueSize,
+                whatsappState: healthStatus.state,
+                whatsappHealthy: healthStatus.isHealthy,
                 timestamp: new Date().toISOString()
             });
         }, 60000);

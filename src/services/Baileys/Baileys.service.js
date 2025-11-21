@@ -20,6 +20,68 @@ export class BaileysService {
     }
 
     /**
+     * Obtiene el estado actual de la conexión
+     * @returns {string} Estado de la conexión
+     */
+    getConnectionState() {
+        // Mapear el estado de Baileys al formato esperado por el health checker
+        if (!this._connectionState) {
+            return 'DISCONNECTED';
+        }
+
+        // El estado puede venir como string 'open', 'close', 'connecting', etc.
+        const state = this._connectionState.toString().toLowerCase();
+        
+        if (state === 'open') {
+            return 'CONNECTED';
+        } else if (state === 'close') {
+            return 'DISCONNECTED';
+        } else if (state === 'connecting') {
+            return 'CONNECTING';
+        } else if (state === 'reconnecting') {
+            return 'RECONNECTING';
+        } else {
+            return 'DISCONNECTED';
+        }
+    }
+
+    /**
+     * Reinicia la conexión de WhatsApp
+     * @returns {Promise<boolean>}
+     */
+    async restartConnection() {
+        try {
+            console.log('🔄 Reiniciando conexión WhatsApp...');
+            
+            // Cerrar la conexión actual si existe
+            if (this._sock) {
+                try {
+                    await this._sock.end();
+                    console.log('✅ Conexión anterior cerrada');
+                } catch (error) {
+                    console.log('⚠️ Error cerrando conexión anterior:', error.message);
+                }
+            }
+
+            // Limpiar estado
+            this._connectionState = null;
+            this._sock = null;
+
+            // Esperar un momento antes de reconectar
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Reiniciar la conexión
+            await this.startConnection();
+            
+            console.log('✅ Conexión WhatsApp reiniciada exitosamente');
+            return true;
+        } catch (error) {
+            console.error('❌ Error al reiniciar conexión:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Inicia la conexión con WhatsApp usando Baileys
      * @returns 
      */
